@@ -1,7 +1,6 @@
-#Walker Lasbury
-
 import os
 import csv
+import pickle
 from num2words import num2words
 import random
 import time
@@ -16,6 +15,8 @@ rsfPot = 0
 withdraws = 0
 cost = 0
 potWithdraws = 0
+rsfAccountIncome = 0
+rsfPotIncome = 0
 
 age_death_table = {
     1: 21024,
@@ -173,13 +174,20 @@ def getPopulation():
 
 def invest():
     global rsfPot
+    global rsfAccountIncome
+    global rsfPotIncome
     for generation in generations:
         for person in generation.people:
-            if person.getAge(startingYear + count) < 65:
-                person.RSFAccount += person.RSFAccount * stockReturn
-            else:
-                person.RSFAccount += person.RSFAccount * bondReturn
-    rsfPot *= stockReturn
+            if person.getAge(startingYear + count) < 65: #stocks
+                person.RSFAccount += (stockReturn * person.RSFAccount)
+                rsfAccountIncome += (stockReturn * person.RSFAccount)
+                
+            else: #bonds
+                person.RSFAccount += (bondReturn * person.RSFAccount)
+                rsfAccountIncome += (stockReturn * person.RSFAccount)
+    rsfPot += (stockReturn * rsfPot)
+    rsfPotIncome += (stockReturn * rsfPot)
+
 
 def simDeath():
     global death
@@ -208,44 +216,61 @@ def withdraw():
                 else:
                     rsfPot = rsfPot - 30000
                     potWithdraws += 30000
-def save_data():
+
+# Define a function to save the data to a CSV file
+def save_data_to_csv():
     with open('RSF.csv', mode='a', newline='') as file:
         writer = csv.writer(file)
         if os.path.getsize('RSF.csv') == 0:  # If the file is empty, write column titles
-            writer.writerow(['Count', 'Population', 'Deaths', 'RSF Accounts Total','RSF Account Withdraws','RSF Excess Total','RSF Excess Withdraws','Cost'])
-        writer.writerow([count, getPopulation(), death, rsfBalance(),withdraws,rsfPot, potWithdraws,cost])
+            writer.writerow(['Count', 'Total Population', 'Total Deaths', 'RSF Accounts Total','Total RSF Accounts Investment Income','Total RSF Account Withdraws','Pot Total','Total Pot Investment Income','Total Pot Withdraws','Total Cost'])
+        writer.writerow([count, getPopulation(), death, rsfBalance(),rsfAccountIncome,withdraws,rsfPot, rsfPotIncome,potWithdraws,cost])
 
-def load_data():
-    global count, death, rsfPot, rsf, withdraws, cost
-    with open('RSF.csv', mode='r') as file:
-        reader = csv.DictReader(file)
-        for row in reader:
-            count = int(row['Count'])
-            death = int(row['Deaths'])
-            rsfPot = float(row['RSF Excess Total'])
-            withdraws = float(row['RSF Account Withdraws'])
-            cost = float(row['Cost'])
+# Define a function to save the state of the program
+def save_state():
+    with open('state.pkl', 'wb') as f:
+        pickle.dump((count, death, rsfPot, rsfAccountIncome, withdraws, rsfPotIncome, potWithdraws, cost, generations), f)
 
+# Define a function to load the state of the program
+def load_state():
+    global count, death, rsfPot, rsfAccountIncome, withdraws, rsfPotIncome, potWithdraws, cost, generations
+    if os.path.exists('state.pkl'):
+        with open('state.pkl', 'rb') as f:
+            count, death, rsfPot, rsfAccountIncome, withdraws, rsfPotIncome, potWithdraws, cost, generations = pickle.load(f)
+    else:
+        count = 0
+        death = 0
+        rsfPot = 0
+        rsfAccountIncome = 0
+        withdraws = 0
+        rsfPotIncome = 0
+        potWithdraws = 0
+        cost = 0
+        generations = []
 
-# Load data if the file exists, otherwise start from scratch
-if os.path.exists('test.csv'):
-    load_data()
+# Load state at the beginning
+print("Picking up from state.pkl")
+load_state()
 
 while True:
     os.system("clear")
     count += 1
     print(f"Loading year {startingYear + count}...")
+    print("Simulating Deaths...")
     simDeath()
+    print("Done.")
+    print("Simulating Investments...")
     invest()
+    print("Done.")
+    print("Simulating Withdraws...")
     withdraw()
+    print("Done.")
+    print("Creating Next Generation...")
     generations.append(Generation(startingYear + count))
-    save_data()
+    print("Done.")
+    print("Saving to state.pkl...")
+    save_state()
+    print("Done.")
+    print("Saving data to CSV...")
+    save_data_to_csv()
+    print("Done.")
 
-rsf = rsfBalance()
-population = getPopulation()
-print(f"Year: {startingYear + count}")
-print(f"Population: {num2words(population)}")
-print(f"Deaths: {num2words(death)}")
-print(f"RSF Accounts Total: {num2words(rsf)}")
-print(f"RSF Excess Total: {num2words(rsfPot)}")
-print(f"RSF Account Withdraws: {num2words(withdraws)}")
